@@ -298,4 +298,22 @@ function autosizeC(){
   // spans C
   document.querySelectorAll('span.cell[data-addr^="C"]').forEach(el=>{
     meas.textContent = el.textContent || '';
-    max = Math.max(max, meas.getBoundingClientRect().width + 24)
+    max = Math.max(max, meas.getBoundingClientRect().width + 24);
+  });
+  // применяем к <col> С-столбца
+  document.getElementById('colC_inputs').style.minWidth = Math.ceil(max) + 'px';
+  document.getElementById('colC_calc').style.minWidth   = Math.ceil(max) + 'px';
+}
+document.getElementById('toggleDetails').addEventListener('click', autosizeC);
+
+/* Сброс */
+function resetDefaults(){
+  document.querySelectorAll('input.cell').forEach(inp=>{ inp.value=''; state[inp.dataset.addr]=null; });
+  recalc(); drawKpis(); autosizeC();
+}
+
+/* Старт */
+recalc(); drawKpis(); autosizeC();
+</script>
+</body>
+</html>
