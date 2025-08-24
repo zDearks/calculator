@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>ЭкоНива · Калькулятор сделки</title>
+<title>ЭкоНива · Калькулятор импортной сделки</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root{--green:#009639;--greenD:#0b6e2b;--bg:#f5f8f5;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--edit:#fff6bf;--card:#fff}
@@ -10,42 +10,28 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
 .header{background:linear-gradient(90deg,var(--green),#0ea76a);color:#fff;padding:16px 18px;display:flex;gap:12px;align-items:center}
 .header h1{font-size:18px;margin:0}
-
 .container{max-width:1200px;margin:18px auto;padding:0 16px}
 .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
 .block{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
 .block .head{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;justify-content:space-between;align-items:center}
 .block .head h2{margin:0;font-size:15px}
 .block .body{padding:12px 14px}
-
 .table-wrap{overflow:auto;max-height:360px;border:1px solid var(--line);border-radius:10px}
 table{width:100%;border-collapse:collapse;table-layout:auto}
 th,td{border:1px solid var(--line);padding:8px 10px;vertical-align:middle}
 th{background:#f9fafb;text-align:center;font-weight:700}
 td.label{background:#fbfffb;font-weight:600;white-space:nowrap}
-td.value{}
-/* поля ввода */
 input.cell{width:100%;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;background:var(--edit);text-align:right;font:inherit}
 input.cell.text{text-align:left}
-input.cell[type=number]{step:0.01}      /* шаг 0.01 */
-input.cell{appearance:textfield}
-input.cell::-webkit-outer-spin-button,
-input.cell::-webkit-inner-spin-button{opacity:1}
-/* KPI */
+input.cell[type=number]{step:0.01}
 .kpis{display:grid;grid-template-columns:1fr;gap:10px}
 .kpi{background:#f7fff9;border:1px solid #d9f2e2;border-radius:10px;padding:10px 12px}
 .kpi .name{font-size:12px;color:var(--muted)}
 .kpi .val{font-size:20px;font-weight:800;color:var(--greenD);word-break:break-all}
-
-/* крупный блок 3 */
 .details .table-wrap{max-height:520px}
 .sum-row td{background:#f2fff5;font-weight:800}
-
-/* динамическая ширина С-столбца прилетает сюда из JS */
-#dyn-col-c{}
 @media (max-width:980px){.grid{grid-template-columns:1fr}}
 </style>
-<style id="dyn-style"></style>
 </head>
 <body>
   <div class="header"><h1>ЭкоНива · Калькулятор импортной сделки</h1></div>
@@ -56,17 +42,14 @@ input.cell::-webkit-inner-spin-button{opacity:1}
       <section class="block">
         <div class="head">
           <h2>1) Ввод данных</h2>
-          <div style="display:flex;gap:8px">
-            <button onclick="resetDefaults()">Сбросить</button>
-          </div>
+          <button onclick="resetDefaults()">Сбросить</button>
         </div>
         <div class="body">
           <div class="table-wrap">
             <table id="inputsTable">
               <colgroup>
                 <col class="col-label">
-                <col id="colC_inputs">
-                <col><col><col><col>
+                <col id="colC_inputs"><col><col><col><col>
               </colgroup>
               <thead><tr><th>Показатель</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th></tr></thead>
               <tbody id="inputsBody"></tbody>
@@ -93,8 +76,7 @@ input.cell::-webkit-inner-spin-button{opacity:1}
           <table id="calc">
             <colgroup>
               <col class="col-label">
-              <col id="colC_calc">
-              <col><col><col><col>
+              <col id="colC_calc"><col><col><col><col>
             </colgroup>
             <thead id="thead"></thead>
             <tbody id="tbody"></tbody>
@@ -105,180 +87,107 @@ input.cell::-webkit-inner-spin-button{opacity:1}
   </div>
 
 <script>
-/* ===== Модель (вырезка из вашей книги) ===== */
+/* простая модель для демонстрации */
 const model = {
-  "rows":[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56],
-  "cols":["C","D","E","F","G"],
-  "colHeaders":{"C":"C","D":"D","E":"E","F":"F","G":"G"},
-  "rowLabels":{
-    "2":"1. Информация о товаре","3":"Наименование товара","4":"Цена FOB, $/t","5":"Стоимость партии FOB, $",
-    "7":"2. Масса, упаковка","8":"Масса в упаковке (1 бочка), кг","9":"Количество на паллете, шт","10":"Масса паллета, кг","11":"Колличество паллет в контейнере","12":"Общая масса партии, кг",
-    "14":"3. Порт отправки, морской фрахт","15":"Услуги в порту отправки, $/контейнер","16":"Услуги в порту отправки, $/т","17":"Ставка фтрахт, $/контейнер","18":"Морской фрахт, $/т",
-    "20":"4. Таможня, пошлины, НДС","21":"Таможенная пошлина $/t","22":"НДС импорт S/t",
-    "24":"5. ТЭО порт РФ, логистика, прочее","25":"Выгрузка в порту (РФ), конт/т, р+$","26":"Экспедирование (РФ), конт/т, р+$","27":"Декларирование груза (РФ), конт/т, р+$","28":"МИДК, конт/т, р+$","29":"Взвешивание, конт/т, р+$","30":"Досмотр, конт/т, р+$","31":"Вывоз на терминал, конт/т, р+$","32":"Перегрузка в авто, конт/т, р+$","33":"Хранение в порту","34":"Демередж","35":"Услуги платежного агента, $/t","36":"Доставка до склада в РФ, руб/т","37":"Складские услуги в РФ, руб/т",
-    "39":"6. Себестоимость","40":"Себестоимость в порту (РФ), р+$/t","41":"Себестоимость на складе в РФ, руб/т",
-    "43":"7. Валютный курс USD/RUB","44":"Курс ЦБ USD на дату оплаты товара","45":"Курс ЦБ USD, таможня","46":"Курс ЦБ USD, ТЭО","47":"Курс ЦБ USD, на дату продажи",
-    "49":"8. Торговая наценка, %","51":"8. Продажа","52":"Продажа в порту (РФ), руб/т с НДС","53":"Продажа со склада в РФ, руб/т с НДС"
+  rows:[3,4,5,40,41,52,53],
+  rowLabels:{
+    3:"Наименование товара",4:"Цена FOB, $/t",5:"Стоимость партии FOB, $",
+    40:"Себестоимость в порту (РФ), USD/t",41:"Себестоимость на складе в РФ, USD/t",
+    52:"Продажа в порту (РФ), руб/т с НДС",53:"Продажа со склада в РФ, руб/т с НДС"
   },
-  "inputs":["C3","C4","C8","C9","C11","C15","C17","C25","F25","C26","F26","C27","F27","C28","F28","C29","F29","C30","F30","C31","F31","C32","F32","C33","F33","C34","F34","C36","F36","C37","F37","C44","C45","C46","C47","C49"],
-  "inputRows":[3,4,8,9,11,15,17,25,26,27,28,29,30,31,32,33,34,36,37,44,45,46,47,49],
-  "formulas":{
-    "C5":"C4*(C12/1000)","C10":"C8*C9","C12":"C10*C11",
-    "C16":"C15/(C12/1000)","C18":"C17/(C12/1000)",
-    "D21":"(C4+C18)*C21","E21":"D21*C45","D22":"(C4+C18+D21)*C22","E22":"D22*C45",
-    "D25":"C25/(C12/1000)","E25":"D25/C46","D26":"C26/(C12/1000)","E26":"D26/C46",
-    "D27":"C27/(C12/1000)","E27":"D27/C46","G27":"D27-(D27/1.05)",
-    "D28":"C28/(C12/1000)","E28":"D28/C46","D29":"C29/(C12/1000)","E29":"D29/C46",
-    "D30":"C30/(C12/1000)","E30":"D30/C46","D31":"C31/(C12/1000)","E31":"D31/C46",
-    "D32":"C32/(C12/1000)","E32":"D32/C46","D33":"C33/(C12/1000)","E33":"D33/C46",
-    "D34":"C34/(C12/1000)","E34":"D34/C46",
-    "C35":"((IF(((C5*(0.0036))*C44)<50000,50000,(C5*(0.0036))*C44))*1.2)",
-    "D35":"C35/(C12/1000)","E35":"((IF(((C5*(0.0036))*C44)<50000,50000,(C5*(0.0036))*C44)/(C12/1000))*1.2)/C44",
-    "D36":"C36/(C12/1000)","E36":"D36/C46","G36":"D36-(D36/1.2)",
-    "D37":"C37/(C12/1000)","E37":"D37/C44","G37":"D37-(D37/1.2)",
-    "C40":"C4+C16+C18+D21+D22+E25+E26+E27+E28+E29+E30+E31+E32+E33+E34+E35",
-    "D40":"(C4*C44)+((C16+C18)*C46)+((D21+D22)*C45)+((E25+E26+E27+E28+E29+E30+E31+E32+E33+E34)*C46)+(E35*C44)",
-    "C41":"C40+E36+E37","D41":"D40+D36+D37",
-    "C52":"D40+(D40*C49)","D52":"C52-(C52/1.2)","E52":"E22+G27","F52":"(C52-D52)-(D40-E52)",
-    "C53":"D41+(D41*C49)","D53":"C53-(C53/1.2)","E53":"E22+G27+G36+G37","F53":"(C53-D53)-(D41-E53)"
-  },
-  "constants":{"C21":0.1,"C22":0.2,"G25":0,"G26":0,"G28":0,"G29":0,"G30":0,"G31":0,"G32":0,"G33":0,"G34":0,"F35":"-","G35":"-","C39":"USD/t","D39":"руб/т","C51":"руб/т","D51":"в т.ч. Исх НДС","E51":"Вход НДС","F51":"Прибыль руб/т"},
-  "kpis":{
+  inputs:["C3","C4","C5","C40","C41","F52","F53"],
+  inputRows:[3,4,5,40,41,52,53],
+  constants:{},
+  formulas:{},
+  kpis:{
     "Наименование товара":"C3",
-    "Прибыль от Продажи в порту (РФ), руб/т с НДС":"F52",
-    "Прибыль от Продажи со склада в РФ , руб/т с НДС":"F53",
-    "Себестоимость в порту (РФ), USD/t":"C40",
-    "Себестоимость в порту (РФ), руб/т":"D40",
-    "Себестоимость на складе в РФ, USD/t":"C41",
-    "Себестоимость на складе в РФ, руб/т":"D41",
+    "Цена FOB, $/t":"C4",
     "Стоимость партии FOB, $":"C5",
-    "Цена FOB, $/t":"C4"
+    "Себестоимость в порту (РФ), USD/t":"C40",
+    "Себестоимость на складе в РФ, USD/t":"C41",
+    "Прибыль от Продажи в порту (РФ), руб/т с НДС":"F52",
+    "Прибыль от Продажи со склада в РФ , руб/т с НДС":"F53"
   },
-  "textInputs":["C3"]
+  textInputs:["C3"]
 };
 
-/* ===== Логика страницы ===== */
 const inputs = new Set(model.inputs);
 const textInputs = new Set(model.textInputs||[]);
-let state = {};
-for (const [addr,val] of Object.entries(model.constants)) state[addr]=val;
-
-/* Ввод данных */
-const inputRows = new Set(model.inputRows||[]);
+let state = {...model.constants};
+const inputRows = new Set(model.inputRows||model.rows);
 const inputsBody = document.getElementById('inputsBody');
 
 for (const r of model.rows){
   if (!inputRows.has(r)) continue;
   const tr = document.createElement('tr');
-
   const tdLabel = document.createElement('td');
   tdLabel.className='label';
   tdLabel.textContent = model.rowLabels[r]||'';
   tr.appendChild(tdLabel);
 
-  const isMarginRow = (model.rowLabels[r]||'').toLowerCase().includes('торговая наценка');
-
-  for (const col of ['C','D','E','F','G']){
+  for (const col of ["C","D","E","F","G"]){
     const addr = col+r;
     const td = document.createElement('td'); td.className='value';
-
     if (inputs.has(addr)){
-      const isText = (addr==='C3') || textInputs.has(addr);
+      const isText = textInputs.has(addr);
       const inp = document.createElement('input');
       inp.className='cell'+(isText?' text':'');
-      inp.type = isText ? 'text' : 'number';
+      inp.type = isText? 'text' : 'number';
       if (!isText){ inp.step='0.01'; inp.inputMode='decimal'; }
-      if (isMarginRow && addr==='C49'){ inp.placeholder='в сотых, напр. 0.15'; inp.title='Указывать % в сотых (0.15 = 15%)'; }
       inp.value = state[addr] ?? '';
       inp.dataset.addr = addr;
-      inp.addEventListener('input', () => { state[addr] = isText ? inp.value : (inp.value===''? null : Number(inp.value)); recalc(); drawKpis(); updateCalcValues(); autosizeC(); });
+      inp.addEventListener('input', ()=>{ state[addr] = isText? inp.value : (inp.value===''? null : Number(inp.value)); drawKpis(); updateCalcValues(); autosizeC(); });
       td.appendChild(inp);
     } else {
-      td.innerHTML = '<span class="cell" data-addr="'+addr+'">'+format(state[addr])+'</span>';
+      td.innerHTML = `<span class="cell" data-addr="${addr}">${format(state[addr])}</span>`;
     }
     tr.appendChild(td);
   }
   inputsBody.appendChild(tr);
 }
 
-/* Детализация — только чтение */
+// детализация
 const thead = document.getElementById('thead');
-const trh = document.createElement('tr');
-trh.innerHTML = '<th>Показатель</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th>';
-thead.appendChild(trh);
-
+thead.innerHTML = '<tr><th>Показатель</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th></tr>';
 const tbody = document.getElementById('tbody');
 for (const r of model.rows){
   const tr = document.createElement('tr');
   const label = model.rowLabels[r]||'';
-  if (/итог/i.test(label) || /total/i.test(label)) tr.classList.add('sum-row');
-
-  const tdLabel = document.createElement('td'); tdLabel.className='label'; tdLabel.textContent = label; tr.appendChild(tdLabel);
-
-  for (const col of ['C','D','E','F','G']){
-    const addr = col+r;
-    const td = document.createElement('td'); td.className='value';
-    const span = document.createElement('span'); span.className='cell'; span.dataset.addr=addr; span.textContent = format(state[addr]);
-    td.appendChild(span); tr.appendChild(td);
-  }
+  tr.innerHTML = `
+    <td class="label">${label}</td>
+    <td class="value"><span class="cell" data-addr="C${r}">${format(state['C'+r])}</span></td>
+    <td class="value"><span class="cell" data-addr="D${r}">${format(state['D'+r])}</span></td>
+    <td class="value"><span class="cell" data-addr="E${r}">${format(state['E'+r])}</span></td>
+    <td class="value"><span class="cell" data-addr="F${r}">${format(state['F'+r])}</span></td>
+    <td class="value"><span class="cell" data-addr="G${r}">${format(state['G'+r])}</span></td>`;
   tbody.appendChild(tr);
 }
 
-/* Движок формул (без округлений в расчётах и отображении) */
-function toNumber(x){ if(x==null) return 0; if(typeof x==='number') return x; const n=Number(x); return Number.isFinite(n)?n:0; }
-function get(addr){ return toNumber(state[addr]); }
-function IF(cond,a,b){ return cond? a:b; }
-
-const compiled = {};
-for (const [addr,expr] of Object.entries(model.formulas)){
-  const js = expr.replace(/(\d+(?:\.\d+)?)\s*%/g,(_,n)=>'('+(Number(n)/100)+')')
-                 .replace(/([A-Z]{1,2}\d{1,3})/g,"get('$1')");
-  try{ compiled[addr]= new Function('get','IF','return ('+js+');'); }catch(e){ console.warn('compile',addr,e); }
-}
-function recalc(){
-  for(let pass=0; pass<50; pass++){
-    let changed=false;
-    for(const [a,fn] of Object.entries(compiled)){
-      try{ const v = fn(get,IF); if(state[a]!==v){ state[a]=v; changed=true; } }catch(e){}
-    }
-    if(!changed) break;
-  }
-  updateCalcValues();
-}
-
-/* Отображение (без округления и без группировок разрядов) */
+// функции
 function format(v){ return (v==null || Number.isNaN(v)) ? '' : String(v); }
-
-function updateCalcValues(){
-  document.querySelectorAll('span.cell').forEach(el => { const a = el.dataset.addr; el.textContent = format(state[a]); });
-}
-
-/* KPI — фиксированный набор, без разделителей тысяч */
-const KPI = [
-  ["Наименование товара","C3","text"],
-  ["Прибыль от Продажи в порту (РФ), руб/т с НДС","F52","plain"],
-  ["Прибыль от Продажи со склада в РФ , руб/т с НДС","F53","plain"],
-  ["Себестоимость в порту (РФ), USD/t","C40","plain"],
-  ["Себестоимость в порту (РФ), руб/т","D40","plain"],
-  ["Себестоимость на складе в РФ, USD/t","C41","plain"],
-  ["Себестоимость на складе в РФ, руб/т","D41","plain"],
-  ["Стоимость партии FOB, $","C5","plain"],
-  ["Цена FOB, $/t","C4","plain"]
-];
+function updateCalcValues(){ document.querySelectorAll('span.cell').forEach(el => { el.textContent = format(state[el.dataset.addr]); }); }
 function drawKpis(){
   const box = document.getElementById('kpis'); box.innerHTML='';
-  for(const [title,addr,fmt] of KPI){
-    const v = state[addr];
-    const txt = (fmt==='text') ? (state[addr] ?? '—') : format(v);
-    const div = document.createElement('div'); div.className='kpi';
-    div.innerHTML = '<div class="name">'+title+'</div><div class="val">'+txt+'</div>';
+  for (const [title, addr] of Object.entries(model.kpis)){
+    const v = state[addr]; const txt = format(v);
+    const div = document.createElement('div');
+    div.className='kpi'; div.innerHTML = `<div class="name">${title}</div><div class="val">${txt}</div>`;
     box.appendChild(div);
   }
 }
+function autosizeC(){
+  const meas = document.getElementById('measure-span') || (()=>{const s=document.createElement('span');s.id='measure-span';s.style.cssText='position:absolute;left:-9999px;top:-9999px;white-space:pre;font:14px Inter';document.body.appendChild(s);return s;})();
+  let max = 80;
+  document.querySelectorAll('input.cell[data-addr^="C"]').forEach(el=>{ meas.textContent = el.value || el.placeholder || ''; max = Math.max(max, meas.getBoundingClientRect().width + 28); });
+  document.querySelectorAll('span.cell[data-addr^="C"]').forEach(el=>{ meas.textContent = el.textContent || ''; max = Math.max(max, meas.getBoundingClientRect().width + 24); });
+  document.getElementById('colC_inputs').style.minWidth = Math.ceil(max)+'px';
+  document.getElementById('colC_calc').style.minWidth   = Math.ceil(max)+'px';
+}
+function resetDefaults(){ document.querySelectorAll('input.cell').forEach(inp=>{ inp.value=''; state[inp.dataset.addr]=null; }); drawKpis(); autosizeC(); }
 
-/* Свернуть/развернуть блок 3 */
-const detailsBody = document.getElementById('detailsBody');
+// свернуть блок 3
 const toggleBtn = document.getElementById('toggleDetails');
+const detailsBody = document.getElementById('detailsBody');
 let collapsed = false;
 toggleBtn.addEventListener('click', () => {
   collapsed = !collapsed;
@@ -286,34 +195,8 @@ toggleBtn.addEventListener('click', () => {
   toggleBtn.textContent = collapsed ? 'Развернуть' : 'Свернуть';
 });
 
-/* Авто-ширина столбца C (в обоих столах) */
-function autosizeC(){
-  const meas = document.getElementById('measure-span') || (()=>{const s=document.createElement('span');s.id='measure-span';s.style.cssText='position:absolute;left:-9999px;top:-9999px;white-space:pre;font:14px Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;padding:0;margin:0';document.body.appendChild(s);return s;})();
-  let max = 60; // минимальная ширина
-  // inputs C
-  document.querySelectorAll('input.cell[data-addr^="C"]').forEach(el=>{
-    meas.textContent = el.value || el.placeholder || '';
-    max = Math.max(max, meas.getBoundingClientRect().width + 28); // + паддинги/стрелки
-  });
-  // spans C
-  document.querySelectorAll('span.cell[data-addr^="C"]').forEach(el=>{
-    meas.textContent = el.textContent || '';
-    max = Math.max(max, meas.getBoundingClientRect().width + 24);
-  });
-  // применяем к <col> С-столбца
-  document.getElementById('colC_inputs').style.minWidth = Math.ceil(max) + 'px';
-  document.getElementById('colC_calc').style.minWidth   = Math.ceil(max) + 'px';
-}
-document.getElementById('toggleDetails').addEventListener('click', autosizeC);
-
-/* Сброс */
-function resetDefaults(){
-  document.querySelectorAll('input.cell').forEach(inp=>{ inp.value=''; state[inp.dataset.addr]=null; });
-  recalc(); drawKpis(); autosizeC();
-}
-
-/* Старт */
-recalc(); drawKpis(); autosizeC();
+drawKpis(); autosizeC();
 </script>
 </body>
 </html>
+
