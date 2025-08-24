@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <title>ЭкоНива · Калькулятор импортной сделки</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Экспорт в PDF -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNa5H2Q8gVxkOqzjV6z0sQ3y8z7l0Jr0I2p0Yt9k3w8cQ1cYg2D2bZzT2mL4Qf3q6b9K7HhQZV7Z7U2w3qNhpA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-/F1G2t1z8Zs4G8mW6uCkA1VZ0b0C8XQq7s7yG0hQk0M9i3m9b0zZkY0N5p9rD3o3lGmQwq8J4x8m9w2b0S9x0Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- Библиотеки для PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
 :root{--green:#009639;--greenD:#0b6e2b;--bg:#f5f8f5;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--edit:#fff6bf;--card:#fff}
 *{box-sizing:border-box}
@@ -30,7 +30,6 @@ td.value{}
 input.cell{width:100%;padding:7px 9px;border:1px solid #cbd5e1;border-radius:8px;background:var(--edit);text-align:right;font:inherit}
 input.cell.text{text-align:left}
 input.cell[type=number]{step:0.01}
-.hint{font-size:12px;color:var(--muted);margin-top:4px;text-align:left}
 .kpis{display:grid;grid-template-columns:1fr;gap:10px}
 .kpi{background:#f7fff9;border:1px solid #d9f2e2;border-radius:10px;padding:10px 12px}
 .kpi .name{font-size:12px;color:var(--muted)}
@@ -147,25 +146,22 @@ const model = {
     52:"Продажа в порту (РФ), руб/т с НДС",
     53:"Продажа со склада в РФ, руб/т с НДС"
   },
-  // редактируемые
+  // редактируемые ячейки (в т.ч. F-колонка)
   inputs:[
     "C3","C4","C8","C9","C11","C15","C17",
     "C25","F25","C26","F26","C27","F27","C28","F28","C29","F29","C30","F30","C31","F31","C32","F32","C33","F33","C34","F34",
     "C36","F36","C37","F37",
-    "C21","C22",                // <-- пошлина и НДС как доли
+    "C21","C22",
     "C44","C45","C46","C47",
     "C49",
-    "C38"                       // <-- новый параметр: доля агента (0.0036)
+    "C38"
   ],
   inputRows:[3,4,8,9,11,15,17,25,26,27,28,29,30,31,32,33,34,36,37,21,22,44,45,46,47,49,38],
-  // начальные значения
   constants:{
-    C21:0.10, C22:0.20,          // по умолчанию 10% и 20% в виде долей
-    C38:0.0036,                  // 0,36% как доля
+    C21:0.10, C22:0.20, C38:0.0036,
     C39:"USD/t", D39:"руб/т", C51:"руб/т", D51:"в т.ч. Исх НДС", E51:"Вход НДС", F51:"Прибыль руб/т",
     G25:0,G26:0,G28:0,G29:0,G30:0,G31:0,G32:0,G33:0,G34:0,F35:"-",G35:"-"
   },
-  // формулы (0.0036 -> C38)
   formulas:{
     "C5":"C4*(C12/1000)","C10":"C8*C9","C12":"C10*C11",
     "C16":"C15/(C12/1000)","C18":"C17/(C12/1000)",
@@ -187,7 +183,6 @@ const model = {
     "C52":"D40+(D40*C49)","D52":"C52-(C52/1.2)","E52":"E22+G27","F52":"(C52-D52)-(D40-E52)",
     "C53":"D41+(D41*C49)","D53":"C53-(C53/1.2)","E53":"E22+G27+G36+G37","F53":"(C53-D53)-(D41-E53)"
   },
-  // KPI — как просили
   kpis:{
     "Наименование товара":"C3",
     "Прибыль от Продажи в порту (РФ), руб/т с НДС":"F52",
@@ -199,19 +194,18 @@ const model = {
     "Стоимость партии FOB, $":"C5",
     "Цена FOB, $/t":"C4"
   },
-  textInputs:["C3"] // C3 — текст
+  textInputs:["C3"]
 };
 
 /* ===== Логика страницы ===== */
 const inputs = new Set(model.inputs);
 const textInputs = new Set(model.textInputs||[]);
 let state = {...model.constants};
-
-// где будем показывать вводимые
 const inputRows = new Set((model.inputRows && model.inputRows.length)? model.inputRows : model.rows);
 
-// 1) Ввод данных
+/* ——— Генерация блока "Ввод данных" ——— */
 const inputsBody = document.getElementById('inputsBody');
+
 for (const r of model.rows){
   if (!inputRows.has(r)) continue;
   const tr = document.createElement('tr');
@@ -221,8 +215,8 @@ for (const r of model.rows){
   tdLabel.textContent = model.rowLabels[r]||'';
   tr.appendChild(tdLabel);
 
-  const isAgentRow = r===38; // % агента
-  const isDutyOrVat = (r===21 || r===22); // пошлина/НДС
+  const isAgentRow = r===38;
+  const isDutyOrVat = (r===21 || r===22);
 
   for (const col of ["C","D","E","F","G"]){
     const addr = col+r;
@@ -234,27 +228,31 @@ for (const r of model.rows){
       inp.className='cell'+(isText?' text':'');
       inp.type = isText? 'text' : 'number';
 
-      // шаг 0.01 по умолчанию; для долей (проценты) даём больше точности
       if (!isText){
         inp.step = (isAgentRow || isDutyOrVat) ? '0.0001' : '0.01';
         inp.inputMode = 'decimal';
       }
-      // подсказки по долям
+
       if (isAgentRow && addr==='C38'){
-        inp.placeholder='0.0036 (0.36%)';
-        inp.title='Доля: 0.0036 = 0,36%';
+        inp.placeholder='0.0036 (0.36%)'; inp.title='Доля: 0.0036 = 0,36%';
       }
       if (isDutyOrVat && (addr==='C21' || addr==='C22')){
-        inp.placeholder = addr==='C21' ? '0.10 (10%)' : '0.20 (20%)';
+        inp.placeholder = (addr==='C21') ? '0.10 (10%)' : '0.20 (20%)';
         inp.title = 'Доля: 0.10 = 10%';
       }
 
-      inp.value = (state[addr] ?? '');
+      inp.value = state[addr] ?? '';
       inp.dataset.addr = addr;
+
       inp.addEventListener('input', ()=>{
-        state[addr] = isText ? inp.value : (inp.value===''? null : Number(inp.value));
+        if (isText){
+          state[addr] = inp.value;
+        } else {
+          state[addr] = parseNumeric(inp.value);
+        }
         recalc(); drawKpis(); updateCalcValues(); autosizeC();
       });
+
       td.appendChild(inp);
     } else {
       td.innerHTML = `<span class="cell" data-addr="${addr}">${format(state[addr])}</span>`;
@@ -264,10 +262,11 @@ for (const r of model.rows){
   inputsBody.appendChild(tr);
 }
 
-// 3) Детализация (read-only)
+/* ——— Детализация (read-only) ——— */
 const thead = document.getElementById('thead');
 thead.innerHTML = '<tr><th>Показатель</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th></tr>';
 const tbody = document.getElementById('tbody');
+
 for (const r of model.rows){
   const tr = document.createElement('tr');
   const label = model.rowLabels[r]||'';
@@ -283,14 +282,22 @@ for (const r of model.rows){
 }
 
 /* ===== Движок формул ===== */
-function toNum(x){ if(x==null) return 0; if(typeof x==='number') return x; const n=Number(x); return Number.isFinite(n)?n:0; }
+function parseNumeric(raw){
+  if (raw==null || raw==='') return null;
+  // поддержка запятой и пробелов: "1 234,56" -> "1234.56"
+  const cleaned = String(raw).replace(/\s+/g,'').replace(',', '.');
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+function toNum(x){ if(x==null) return 0; if(typeof x==='number') return x; const n=parseNumeric(x); return Number.isFinite(n)?n:0; }
 function get(a){ return toNum(state[a]); }
 function IF(c,a,b){ return c?a:b; }
 
 const compiled = {};
 for (const [addr,expr] of Object.entries(model.formulas)){
-  const js = expr.replace(/(\d+(?:\.\d+)?)\s*%/g,(_,n)=>'('+(Number(n)/100)+')')
-                 .replace(/([A-Z]{1,2}\d{1,3})/g,"get('$1')");
+  const js = expr
+    .replace(/(\d+(?:\.\d+)?)\s*%/g,(_,n)=>'('+(Number(n)/100)+')')
+    .replace(/([A-Z]{1,2}\d{1,3})/g,"get('$1')");
   try{ compiled[addr]= new Function('get','IF','return ('+js+');'); }catch(e){ console.warn('compile',addr,e); }
 }
 function recalc(){
@@ -306,8 +313,8 @@ function recalc(){
 
 /* ===== Отображение (округление до сотых) ===== */
 function fmt2(v){
-  if (v==null || Number.isNaN(v)) return '';
-  if (typeof v === 'string' && v.trim()!=='' && isNaN(Number(v))) return v; // текст (например C3)
+  if (v==null) return '';
+  if (typeof v === 'string') return v; // текст (например C3)
   const n = Number(v);
   return Number.isFinite(n) ? n.toFixed(2) : '';
 }
@@ -320,11 +327,11 @@ function updateCalcValues(){
   });
 }
 
-/* ===== KPI (тоже округляем до сотых, без разделителей) ===== */
+/* ===== KPI ===== */
 const KPI = [
   ["Наименование товара","C3","text"],
   ["Прибыль от Продажи в порту (РФ), руб/т с НДС","F52","plain"],
-  ["Прибыль от Продажи со склада в РФ, руб/т с НДС","F53","plain"],
+  ["Прибыль от Продажи со склада в РФ , руб/т с НДС","F53","plain"],
   ["Себестоимость в порту (РФ), USD/t","C40","plain"],
   ["Себестоимость в порту (РФ), руб/т","D40","plain"],
   ["Себестоимость на складе в РФ, USD/t","C41","plain"],
@@ -353,7 +360,7 @@ toggleBtn.addEventListener('click', () => {
   toggleBtn.textContent = collapsed ? 'Развернуть детали' : 'Свернуть детали';
 });
 
-/* Авто-ширина столбца C (в обоих столах) */
+/* Авто-ширина столбца C */
 function autosizeC(){
   const meas = document.getElementById('measure-span') || (()=>{const s=document.createElement('span');s.id='measure-span';s.style.cssText='position:absolute;left:-9999px;top:-9999px;white-space:pre;font:14px Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;padding:0;margin:0';document.body.appendChild(s);return s;})();
   let max = 80;
@@ -376,7 +383,7 @@ function resetDefaults(){
   recalc(); drawKpis(); autosizeC();
 }
 
-/* Экспорт в PDF (захватываем .container) */
+/* Экспорт в PDF */
 async function exportPDF(){
   const elem = document.getElementById('capture-area');
   const canvas = await html2canvas(elem,{scale:2,useCORS:true});
@@ -386,17 +393,25 @@ async function exportPDF(){
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const ratio = canvas.width / canvas.height;
-  let imgW = pageWidth - 40, imgH = imgW / ratio, x = 20, y = 20;
-  if (imgH > pageHeight - 40){ imgH = pageHeight - 40; imgW = imgH * ratio; }
+
+  let imgW = pageWidth - 40;
+  let imgH = imgW / ratio;
+  const x = 20, y = 20;
+
+  if (imgH > pageHeight - 40){
+    imgH = pageHeight - 40;
+    imgW = imgH * ratio;
+  }
+
   pdf.addImage(img,'PNG',x,y,imgW,imgH,'','FAST');
-  // если контент длиннее страницы — простая разбивка (многостраничный рендер)
-  let heightLeft = canvas.height - (imgH * (canvas.width/imgW));
-  let position = y + imgH;
+
+  // простая разбивка (если контент длиннее)
+  let heightRendered = imgH * (canvas.width/imgW);
+  let heightLeft = canvas.height - heightRendered;
   while (heightLeft > 0){
     pdf.addPage();
-    pdf.addImage(img,'PNG',x,20,imgW,imgH,'','FAST',0,'FAST');
-    heightLeft -= (imgH * (canvas.width/imgW));
-    position = 20;
+    pdf.addImage(img,'PNG',x,20,imgW,imgH,'','FAST');
+    heightLeft -= heightRendered;
   }
   pdf.save('ekoniva_calc.pdf');
 }
